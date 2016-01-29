@@ -38,16 +38,17 @@ type
     procedure ServerConnect(AContext: TIdContext);
     procedure FormCreate(Sender: TObject);
   private
-    Adresse: array[Teams] of Adresse;
-    Bereit: array[Teams] of Boolean;
+    Adresse: array[TTeam] of Adresse;
+    Bereit: array[TTeam] of Boolean;
     KameraIstKalibriert: Boolean;
 
     SpielLaeuft: Boolean;
     Spielende: TDateTime;
-    RoboterAktiv: array[Teams] of array[1..ANZAHL_ROBOTER] of Boolean;
-    Punkte: array[Teams] of Integer;
+    RoboterAktiv: array[TTeam] of array[1..ANZAHL_ROBOTER] of Boolean;
+    Punkte: array[TTeam] of Integer;
 
-    procedure VerbindungAbbrechen(art: Fehlerart; Kontext: TIdContext);
+    procedure SendeSpielstatus;
+    procedure VerbindungAbbrechen(art: TFehlerart; Kontext: TIdContext);
   public
     { Public-Deklarationen }
   end;
@@ -61,7 +62,7 @@ implementation
 
 procedure TSchiedsrichter.FormCreate(Sender: TObject);
 var
-  team: Teams;
+  team: TTeam;
   i: Integer;
 begin
   KameraIstKalibriert := False;
@@ -73,12 +74,52 @@ begin
     Punkte[team] := 0;
     for i := Low(RoboterAktiv[team]) to High(RoboterAktiv[team]) do
       RoboterAktiv[team][i] := False;
+
+   // FillChar(Spielstatus.Roboterpositionen[team],
+   //          SizeOf(Spielstatus.Roboterpositionen[team]), #0); //< TODO: So richtig?
   end;
 
 end;
 
+procedure TSchiedsrichter.SendeSpielstatus;
+var
+  Kontext: ^TIdContext;
+  Team: TTeam;
+  Paket: TMemoryStream;
+  Zeitstempel: TTimeStamp;
+  i: Integer;
+begin
+
+  Paket := TMemoryStream.Create;
+  Zeitstempel := DateTimeToTimeStamp(Now); // Zeitpunkt der Aufnahme des Bildes einfügen
+  Paket.Write(Zeitstempel, SizeOf(Zeitstempel));
+
+  for Team in [TEAM_ROT, TEAM_BLAU] do
+  begin
+    Paket.Write(Punkte[Team], SizeOf(Punkte[Team]));
+    for i := 1 to ANZAHL_ROBOTER do
+    begin
+      Paket.Write(RoboterAktiv[Team][i], SizeOf(RoboterAktiv[Team][i]));
+      Paket.Write(i, 4); //Platzhalter
+      Paket.Write(i, 4); //Platzhalter
+      //Paket.Write(RoboterPosition[team][i], SizeOf(RoboterPosition[team][i]));
+    end;
+  end;
+
+  Try
+    for Kontext in Server.Contexts.LockList do
+    begin
+      Paket.Position := 0;
+      Kontext.Connection.Socket.Write(Paket, Paket.Size);
+    end;
+  Finally
+    Server.Contexts.UnlockList;
+  End;
+
+end;
+
 procedure TSchiedsrichter.ServerConnect(AContext: TIdContext);
-var teamwahl: Teams;
+var teamwahl: TTeam;
 begin
   if AContext.Connection.Socket.ReadByte <> Byte(ANMELDUNG) then
   begin
@@ -92,7 +133,7 @@ begin
     Exit;
   end;
 
-  teamwahl := Teams(AContext.Connection.Socket.ReadByte);
+  teamwahl := TTeam(AContext.Connection.Socket.ReadByte);
 
   if (teamwahl <> TEAM_ROT) and (teamwahl <> TEAM_BLAU) then
   begin
@@ -125,18 +166,18 @@ end;
 procedure TSchiedsrichter.ServerExecute(AContext: TIdContext);
 var
   index: Integer;
-  sender, team: Teams;
+  sender, team: TTeam;
 begin
   with  AContext.Connection.Socket do
   begin
 
-    sender := Teams(-1);
+    sender := TTeam(-1);
 
     for team in [TEAM_ROT, TEAM_BLAU] do
       if (Adresse[team].IP = AContext.Binding.IP) and (Adresse[team].Port = AContext.Binding.Port) then
         sender := team;
 
-    Assert(sender <> Teams(-1));
+    Assert(sender <> TTeam(-1));
 
     case ReadByte of
       Byte(MELDUNG_GEFANGEN):
@@ -165,7 +206,7 @@ begin
 
 end;
 
-procedure TSchiedsrichter.VerbindungAbbrechen(art: Fehlerart; Kontext: TIdContext);
+procedure TSchiedsrichter.VerbindungAbbrechen(art: TFehlerart; Kontext: TIdContext);
 begin
   Kontext.Connection.Socket.Write(Byte(ABBRUCH_DURCH_SERVER));
   Kontext.Connection.Socket.Write(Byte(art));
