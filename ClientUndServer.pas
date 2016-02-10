@@ -1,9 +1,8 @@
 unit ClientUndServer;
 
 interface
-  const
-    ANZAHL_ROBOTER = 4;
-    PROTOKOLL_VERSION = 2;
+
+  uses GlobaleTypen;
 
   type
     TPakettyp = (ABBRUCH_DURCH_SERVER, ANMELDUNG, ANMELDUNG_ERFOLGREICH, ANMELDUNG_FEHLGESCHLAGEN, MELDUNG_GEFANGEN, SPIELBEGINN);

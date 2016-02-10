@@ -2,7 +2,7 @@ unit Client;
 
 interface
 
-  uses IdTCPClient, IdGlobal, ClientUndServer, SysUtils, Classes;
+  uses IdTCPClient, IdGlobal, ClientUndServer, SysUtils, Classes, GlobaleTypen;
 
   type
     TServerVerbindung = class(TObject)
