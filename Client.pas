@@ -22,6 +22,8 @@ implementation
 
 constructor TServerVerbindung.Create(IP: String; Port: Integer);
 begin
+  tcpClient :=TIdTCPClient.Create(nil);
+
   tcpClient.Host := IP;
   tcpClient.Port := Port;
 end;
